@@ -1411,25 +1411,99 @@ $(document).ready(function() {
 	}
 
 
+	$("#chkVerifyMessage").click(function(){
+		if($(this).is(":checked")){
+			$("#verifyMessageData").removeClass("hidden");
+		} else {
+			$("#verifyMessageData").addClass("hidden");
+		}	
+	});
+
+	$("#chkSignMessage").click(function(){
+		if($(this).is(":checked")){
+			$("#signMessageData").removeClass("hidden");
+		} else {
+			$("#signMessageData").addClass("hidden");
+		}	
+	});
+
+
+	/* sign message code */
+	function signMessage() {
+		var rawmessage = $("#signTransaction").val();
+		var wif = $("#signPrivateKey").val();
+		if (wif.length == 0) {
+			alert("Enter the WIF key to sign.");
+		} else {
+			try {
+				var bip0137 = $("#sigAddressType option:selected").html();
+				var messageToSign = formatSigningMessage(rawmessage);
+				var sigArr = coinjs.MsgSig(wif, messageToSign, bip0137);
+				var sigB64 = coinjs.base64encode(sigArr.signature);
+				$("#newSignSig").val(sigB64);
+				$("#newSignPub").val(sigArr.address.address);
+			} catch(e) {
+				console.log(e);
+			}
+		}
+	}
+
+	/* verify message code */
+	function verifySignedMessage() {
+		var rawmessage = $("#verifyScript").val();
+		var messageToSign = formatSigningMessage(rawmessage);
+		var sigB64 = $("#verifyMessageData .signature").val();
+		var w2address = $("#verifyMessageData .address").val();
+		var sigB64b = coinjs.base64decode(sigB64);
+		var sigB64t = Crypto.util.bytesToHex(sigB64b);
+		if (coinjs.MsgSigVerify(messageToSign, sigB64b, w2address)) {
+			alert("message verified!"); }
+		else {
+			alert("message NOT verified!"); }
+	}
+
+	// signed messages predefined format, eg: "[varint]Bitcoin Signed Message:\n[varint][message]"
+	function formatSigningMessage(postfix) {
+		var messageToSign = [];
+		var prefix = "Signed Message:\n";
+		if (coinjs.network.indexOf("bitcoin")>=0)    { prefix = "Bitcoin " + prefix; }
+		if (coinjs.network.indexOf("litecoin")>=0)   { prefix = "Litecoin " + prefix; }
+		if (coinjs.network.indexOf("dogecoin")>=0)   { prefix = "Dogecoin " + prefix; }
+		if (coinjs.network.indexOf("carboncoin")>=0) { prefix = "Carboncoin " + prefix; }
+		if (coinjs.network.indexOf("shadowcash")>=0) { prefix = "Shadowcash " + prefix; }
+		messageToSign = messageToSign.concat(coinjs.numToVarInt(prefix.length));
+		messageToSign = messageToSign.concat(prefix.split(''));
+		messageToSign = messageToSign.concat(coinjs.numToVarInt(postfix.length));
+		messageToSign = messageToSign.concat(postfix.split(''));
+		for (i=0; i < messageToSign.length; i++) {
+			if (typeof messageToSign[i] === 'string') {
+				messageToSign[i] = messageToSign[i].charCodeAt(0);
+			}
+		}
+		return messageToSign;
+	}
 
 
 	/* verify script code */
-
 	$("#verifyBtn").click(function(){
-		$(".verifyData").addClass("hidden");
 		$("#verifyStatus").hide();
-		if(!decodeRedeemScript()){
-			if(!decodeTransactionScript()){
-				if(!decodePrivKey()){
-					if(!decodePubKey()){
-						if(!decodeHDaddress()){
-							$("#verifyStatus").removeClass('hidden').fadeOut().fadeIn();
+		if($("#chkVerifyMessage").is(":checked")){
+			verifySignedMessage();
+		}
+		else {
+			$(".verifyData").addClass("hidden");
+			if(!decodeRedeemScript()){
+				if(!decodeTransactionScript()){
+					if(!decodePrivKey()){
+						if(!decodePubKey()){
+							if(!decodeHDaddress()){
+								$("#verifyStatus").removeClass('hidden').fadeOut().fadeIn();
+							}
 						}
 					}
 				}
 			}
 		}
-
 	});
 
 	function decodeRedeemScript(){
@@ -1689,37 +1763,42 @@ $(document).ready(function() {
 	/* sign code */
 
 	$("#signBtn").click(function(){
-		var wifkey = $("#signPrivateKey");
-		var script = $("#signTransaction");
-
-		if(coinjs.addressDecode(wifkey.val())){
-			$(wifkey).parent().removeClass('has-error');
-		} else {
-			$(wifkey).parent().addClass('has-error');
+		if($("#chkSignMessage").is(":checked")){
+			var signed = signMessage();
 		}
+		else {
+			var wifkey = $("#signPrivateKey");
+			var script = $("#signTransaction");
 
-		if((script.val()).match(/^[a-f0-9]+$/ig)){
-			$(script).parent().removeClass('has-error');
-		} else {
-			$(script).parent().addClass('has-error');
-		}
-
-		if($("#sign .has-error").length==0){
-			$("#signedDataError").addClass('hidden');
-			try {
-				var tx = coinjs.transaction();
-				var t = tx.deserialize(script.val());
-
-				var signed = t.sign(wifkey.val(), $("#sighashType option:selected").val());
-				$("#signedData textarea").val(signed);
-				$("#signedData .txSize").html(t.size());
-				$("#signedData").removeClass('hidden').fadeIn();
-			} catch(e) {
-				// console.log(e);
+			if(coinjs.addressDecode(wifkey.val())){
+				$(wifkey).parent().removeClass('has-error');
+			} else {
+				$(wifkey).parent().addClass('has-error');
 			}
-		} else {
-			$("#signedDataError").removeClass('hidden');
-			$("#signedData").addClass('hidden');
+
+			if((script.val()).match(/^[a-f0-9]+$/ig)){
+				$(script).parent().removeClass('has-error');
+			} else {
+				$(script).parent().addClass('has-error');
+			}
+
+			if($("#sign .has-error").length==0){
+				$("#signedDataError").addClass('hidden');
+				try {
+					var tx = coinjs.transaction();
+					var t = tx.deserialize(script.val());
+
+					var signed = t.sign(wifkey.val(), $("#sighashType option:selected").val());
+					$("#signedData textarea").val(signed);
+					$("#signedData .txSize").html(t.size());
+					$("#signedData").removeClass('hidden').fadeIn();
+				} catch(e) {
+					// console.log(e);
+				}
+			} else {
+				$("#signedDataError").removeClass('hidden');
+				$("#signedData").addClass('hidden');
+			}
 		}
 	});
 
@@ -1734,6 +1813,16 @@ $(document).ready(function() {
 		} else {
 			$("span",this).removeClass('glyphicon-collapse-up').addClass('glyphicon-collapse-down');
 			$("#signAdvanced").addClass("hidden");
+		}
+	});
+
+	$("#verifyAdvancedCollapse").click(function(){
+		if($("#verifyAdvanced").hasClass('hidden')){
+			$("span",this).removeClass('glyphicon-collapse-down').addClass('glyphicon-collapse-up');
+			$("#verifyAdvanced").removeClass("hidden");
+		} else {
+			$("span",this).removeClass('glyphicon-collapse-up').addClass('glyphicon-collapse-down');
+			$("#verifyAdvanced").addClass("hidden");
 		}
 	});
 
@@ -1861,6 +1950,7 @@ $(document).ready(function() {
 
 		if($("#settings .has-error").length==0){
 
+			coinjs.network =  $("#coinjs_network").val();
 			coinjs.pub =  $("#coinjs_pub").val()*1;
 			coinjs.priv =  $("#coinjs_priv").val()*1;
 			coinjs.multisig =  $("#coinjs_multisig").val()*1;
@@ -1887,6 +1977,7 @@ $(document).ready(function() {
 
 	$("#coinjs_coin").change(function(){
 
+		var network = ($("option:selected",this).attr("value")).split(";");
 		var o = ($("option:selected",this).attr("rel")).split(";");
 
 		// deal with broadcasting settings
@@ -1908,6 +1999,7 @@ $(document).ready(function() {
 		}
 
 		// deal with the reset
+		$("#coinjs_network").val(network);
 		$("#coinjs_pub").val(o[0]);
 		$("#coinjs_priv").val(o[1]);
 		$("#coinjs_multisig").val(o[2]);

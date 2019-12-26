@@ -979,9 +979,29 @@
 							<div class="col-md-12">
 								<p>Enter the raw transaction, redeem script, pubkey, hd address or wif key to convert it into a readable format that can be verified manually.</p>
 								<textarea type="text" id="verifyScript" class="form-control" style="height:125px"></textarea>
+								<br />
+
+								<a href="javascript:;" id="verifyAdvancedCollapse">
+									<div class="well well-sm"><span class="glyphicon glyphicon-collapse-down"></span> Advanced Options</div>
+								</a>
+
+								<div id="verifyAdvanced" class="hidden">
+									<div class="row">
+										<div class="col-md-12">
+										<label><input type="checkbox" id="chkVerifyMessage" class="checkbox-inline">Verify a signed message</label>
+										</div>
+									</div>
+								</div>
 							</div>
 						</div>
 						<br>
+
+						<div class="hidden verifyData" id="verifyMessageData">
+							<p>Enter the information necessary to verify the signed message:</p>
+							<p><b>Address</b>: <input type="text" class="form-control address"></p>
+							<p><b>Signature</b>: <input type="text" class="form-control signature"></p>
+							<br />
+						</div>
 
 						<div class="hidden verifyData" id="verifyRsData">
 
@@ -1293,6 +1313,39 @@
 							<div class="alert alert-info" id="sighashTypeInfo">
 								SIGHASH_ALL: The default, signs all the inputs and outputs, protecting everything except the signature scripts against modification.
 							</div>
+
+							<div class="row">
+								<div class="col-md-12">
+								<label><input type="checkbox" id="chkSignMessage" class="checkbox-inline">Sign a text message</label>
+
+								<div class="hidden signData" id="signMessageData">
+									<div class="col-xs-3">
+										Address type
+										<select id="sigAddressType" class="form-control">
+											<option selected>p2pkh</option>
+											<option>p2sh(p2wpkh)</option>
+											<option>p2wpkh</option>
+										</select>
+									</div>
+									<div class="col-xs-10">
+									<label>Address</label><span class="text-muted"> (for verifying)</span>
+									<div class="input-group-btn">
+										<input id="newSignPub" type="text" class="form-control" value="" readonly>
+									</div>
+									<label>Signature</label>
+									<div class="input-group-btn">
+										<input id="newSignSig" type="text" class="form-control" value="" readonly>
+									</div>
+									</div>
+									<br />
+									<br />
+									<br />
+									<br />
+									</div>
+								</div>
+							</div>
+
+
 						</div>
 
 						<div class="alert alert-danger hidden" id="signedDataError">
@@ -1395,14 +1448,19 @@
 
 
 							<div class="row">
-								<div class="col-md-6">
+								<div class="col-md-4">
 									<b>HD Pub</b>: <br>
 									<input type="text" class="form-control coinjssetting" id="coinjs_hdpub">
 								</div>
 
-								<div class="col-md-6">
+								<div class="col-md-4">
 									<b>HD Priv</b>: <br>
 									<input type="text" class="form-control coinjssetting" id="coinjs_hdprv">
+								</div>
+
+								<div class="col-md-4">
+									<b>Network</b>: <br>
+									<input type="text" class="form-control" id="coinjs_network">
 								</div>
 							</div>
 

@@ -10,6 +10,7 @@
 	var coinjs = window.coinjs = function () { };
 
 	/* public vars */
+	coinjs.network = "bitcoin_mainnet";
 	coinjs.pub = 0x00;
 	coinjs.priv = 0x80;
 	coinjs.multisig = 0x05;
@@ -1421,7 +1422,7 @@
 			// some necessary things out of the way for clarity.
 			badrs = badrs || 0;
 			var key = coinjs.wif2privkey(wif);
-			var x = Crypto.util.hexToBytes(key['privkey'])
+			var x = Crypto.util.hexToBytes(key['privkey']);
 			var curve = EllipticCurve.getSECCurveByName("secp256k1");
 			var N = curve.getN();
 
@@ -1779,6 +1780,159 @@
 
 	/* start of signature vertification functions */
 
+	// method for signing a message
+	coinjs.MsgSig = function(wif, message, bip0137) {
+		var hash = Crypto.SHA256(Crypto.SHA256(message,{asBytes: true}),{asBytes: true});
+		var curve = EllipticCurve.getSECCurveByName("secp256k1");
+		var key = coinjs.wif2privkey(wif);
+		var priv = BigInteger.fromByteArrayUnsigned(Crypto.util.hexToBytes(key['privkey']));
+		var n = curve.getN();
+		var e = BigInteger.fromByteArrayUnsigned(hash);
+		var badrs = 0;
+		var recId = 1;
+		do {
+			var k = coinjs.transaction().deterministicK(wif, hash, badrs);
+			var G = curve.getG();
+			var Q = G.multiply(k);
+			var r = Q.getX().toBigInteger().mod(n);
+			var s = k.modInverse(n).multiply(e.add(priv.multiply(r))).mod(n);
+			if (Q.getY().toBigInteger().mod(n).isEven()) {
+				recId = 0;
+			}
+			badrs++
+		} while (r.compareTo(BigInteger.ZERO) <= 0 || s.compareTo(BigInteger.ZERO) <= 0);
+
+		// Force lower s values per BIP62
+		var halfn = n.shiftRight(1);
+		if (s.compareTo(halfn) > 0) {
+			s = n.subtract(s);
+			recId ^= 1;
+		};
+
+		var rBa = r.toByteArraySigned();
+		var sBa = s.toByteArraySigned();
+		var rec = 0;
+		if (rBa.length > 32 && rBa[0] == 0) {
+			rBa.splice(0,1);	// remove first 0 element
+		}
+		var derivedAddress = "";
+
+		// bip0137: recId encodes address type and key derivation info
+		if (bip0137 == "p2pkh") {
+			if (key['compressed'] == false)	{
+				recId = recId + 27;
+			}
+			else {
+				recId = recId + 31;
+			}
+			derivedAddress = coinjs.wif2address(wif);
+		}
+		else if (bip0137 == "p2sh(p2wpkh)") {
+			recId = recId + 35;
+			derivedAddress = coinjs.segwitAddress(coinjs.wif2pubkey(wif).pubkey);
+		}
+		else if (bip0137 == "p2wpkh") {
+			recId = recId + 39;
+			derivedAddress = coinjs.bech32Address(coinjs.wif2pubkey(wif).pubkey);
+		}
+		var signature = [];
+		signature.push(recId);
+		signature = signature.concat(rBa).concat(sBa);
+		return {'address':derivedAddress, 'signature':signature};
+	}
+
+	/*
+	https://tools.ietf.org/html/rfc6979
+	https://stackoverflow.com/questions/19665491/how-do-i-get-an-ecdsa-public-key-from-just-a-bitcoin-signature-sec1-4-1-6-k
+	https://crypto.stackexchange.com/questions/18105/how-does-recovering-the-public-key-from-an-ecdsa-signature-work/18106#18106
+	https://github.com/nanotube/supybot-bitcoin-marketmonitor/blob/master/GPG/local/bitcoinsig.py
+
+	 with the signature and the message that was signed, and the knowledge of the curve,
+	 it is possible to generate two public keys; one of which will be the public key
+	 corresponding to the private key used.
+
+	Here's how that works:
+
+	  First, you find the two points 𝑅, 𝑅′ which have the value 𝑟 as the x-coordinate 𝑟
+
+	  You also compute 𝑟−1, which is the multiplicative inverse of the value 𝑟
+	  from the signature (modulo the order of the generator of the curve).
+
+	  Then, you compute 𝑧
+	  which is the lowest 𝑛 bits of the hash of the message (where 𝑛 is the bit size of the curve).
+
+	  Then, the two public keys are 𝑟^−1(𝑠𝑅−𝑧𝐺) and 𝑟^−1(𝑠𝑅′−𝑧𝐺)
+
+	  It is easy to verify that if you plug either of these values in the ECDSA signature routines as the public keys, the signature validates.
+
+	Addendum:
+	  𝑄1=𝑟^−1(𝑠𝑅−𝑧𝐺) and 𝑄2=𝑟^−1(𝑠𝑅′−𝑧𝐺)
+	 (𝑠^−1 𝑧𝐺 + 𝑠^−1 𝑟𝑄𝑖)𝑥 = 𝑟 mod 𝑛
+	*/
+
+	coinjs.MsgSigVerify = function (message, sig, address) {
+		var hash = Crypto.SHA256(Crypto.SHA256(message,{asBytes: true}),{asBytes: true});
+		var cursor = 1;
+		var fCompressed = true;
+		var recId = sig.slice(cursor-1, cursor);
+		var rBa = sig.slice(cursor, cursor + 32);
+		cursor += rBa.length;
+		var sBa = sig.slice(cursor, cursor + 32);
+
+		// github.com/bitcoin/bips/blob/master/bip-0137.mediawiki <--- recId
+		var bip0137 = "p2pkh";
+		if (recId >= 35 && recId <= 38) {
+			recId = recId - 35;
+			bip0137 = "p2sh(p2wpkh)";
+		}
+		else if (recId >= 39 && recId <= 42) {
+			recId = recId - 39;
+			bip0137 = "p2wpkh";
+		}
+		else if (recId >= 31 && recId <= 34) {
+			recId = recId - 31;
+		}
+		else if (recId >= 27 && recId <= 30) {
+			recId = recId - 27;
+			fCompressed = false;  // this is the only case uncompressed keys are used
+		}
+
+		var r = BigInteger.fromByteArrayUnsigned(rBa);
+		var s = BigInteger.fromByteArrayUnsigned(sBa);
+		var ecparams = EllipticCurve.getSECCurveByName("secp256k1");
+		var curve = ecparams.getCurve();
+		var n = ecparams.getN();
+		var G = ecparams.getG();
+		// 1.1 x = r + jn
+		var x = r;
+		// 1.3 convert x to a point on the curve
+		var R1 = curve.decompressPoint(recId, x);
+		var R2 = R1.negate();
+		// 1.5 compute e from M (hash done already)
+		var e = BigInteger.fromByteArrayUnsigned(hash);
+		// 1.6.1 candidate pubkey Q = r^-1 (sR - eG)
+		//var Q = r.pow(-1).multiply((s.multiply(R).subtract(e.multiply(G))));
+		var v1 = r.modInverse(n)
+		var v2 = G.multiply(e);
+		var v3 = R1.multiply(s);
+		var v4 = v3.add(v2.negate());
+		var Q = v4.multiply(v1);
+		var pubkey = Crypto.util.bytesToHex(Q.getEncoded(compressed=fCompressed));
+		if (bip0137 == "p2pkh") {
+			derivedAddress = coinjs.pubkey2address(pubkey);
+		}
+		if (bip0137 == "p2sh(p2wpkh)") {
+			derivedAddress = coinjs.segwitAddress(pubkey).address;
+		}
+		if (bip0137 == "p2wpkh") {
+			derivedAddress = coinjs.bech32Address(pubkey).address;
+		}
+		return (address==derivedAddress);
+	}
+
+
+
+
 	coinjs.verifySignature = function (hash, sig, pubkey) {
 
 		function parseSig (sig) {
@@ -1901,6 +2055,80 @@
 		var bytes = bi.toByteArrayUnsigned();
 		while (leadingZerosNum-- > 0) bytes.unshift(0);
 		return bytes;		
+	}
+
+	/**
+	*
+	*  Base64 encode / decode
+	*  http://www.webtoolkit.info/
+	*
+	**/
+
+
+	// private property
+
+	// public method for encoding
+	coinjs.base64encode = function (input) {
+		var _keyStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+		var output = "";
+		var chr1, chr2, chr3, enc1, enc2, enc3, enc4;
+		var i = 0;
+
+		//input = Base64._utf8_encode(input);
+
+		while (i < input.length) {
+
+		    chr1 = input[i++]; //.charCodeAt(i++);
+		    chr2 = input[i++]; //.charCodeAt(i++);
+		    chr3 = input[i++]; //.charCodeAt(i++);
+
+		    enc1 = chr1 >> 2;
+		    enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+		    enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
+		    enc4 = chr3 & 63;
+
+		    if (isNaN(chr2)) {
+		        enc3 = enc4 = 64;
+		    } else if (isNaN(chr3)) {
+		        enc4 = 64;
+		    }
+
+		    output = output +
+		    _keyStr.charAt(enc1) + _keyStr.charAt(enc2) +
+		    _keyStr.charAt(enc3) + _keyStr.charAt(enc4);
+		}
+		return output;
+	},
+
+	// public method for decoding
+	coinjs.base64decode = function (input) {
+		var _keyStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+		var output = [];
+		var chr1, chr2, chr3;
+		var enc1, enc2, enc3, enc4;
+		var i = 0;
+
+		 while (i < input.length) {
+
+		    enc1 = _keyStr.indexOf(input.charAt(i++));
+		    enc2 = _keyStr.indexOf(input.charAt(i++));
+		    enc3 = _keyStr.indexOf(input.charAt(i++));
+		    enc4 = _keyStr.indexOf(input.charAt(i++));
+
+		    chr1 = (enc1 << 2) | (enc2 >> 4);
+		    chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+		    chr3 = ((enc3 & 3) << 6) | enc4;
+
+		    output.push(chr1);
+
+		    if (enc3 != 64) {
+		        output.push(chr2);
+		    }
+		    if (enc4 != 64) {
+		        output.push(chr3);
+		    }
+		}
+		return output;
 	}
 
 	/* raw ajax function to avoid needing bigger frame works like jquery, mootools etc */
