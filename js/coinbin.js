@@ -935,6 +935,8 @@ $(document).ready(function() {
 
 		} else if(host=='cryptoid.info_carboncoin'){
 			listUnspentCryptoidinfo_Carboncoin(redeem);
+		} else if(host=='nyanchain.com_nyancoin'){
+			listUnspentNyanchaincom_Nyancoin(redeem);
 		} else {
 			listUnspentDefault(redeem);
 		}
@@ -1145,6 +1147,41 @@ $(document).ready(function() {
 	}
 
 
+	/* retrieve unspent data from nyanchain.com for nyancoin */
+	function listUnspentNyanchaincom_Nyancoin(redeem){
+		$.ajax ({
+			type: "GET",
+			url: "https://www.nyanchain.com/a/unspent.nyan?"+redeem.addr,
+			dataType: "json",
+			error: function(data) {
+				$("#redeemFromStatus").removeClass('hidden').html('<span class="glyphicon glyphicon-exclamation-sign"></span> Unexpected error, unable to retrieve unspent outputs!');
+			},
+			success: function(data) {
+				if((data.status && data.data) && data.status=='success'){
+					$("#redeemFromAddress").removeClass('hidden').html(
+						'<span class="glyphicon glyphicon-info-sign"></span> Retrieved unspent inputs from address <a href="'+explorer_addr+redeem.addr+'" target="_blank">'+redeem.addr+'</a>');
+					for(var i in data.data.txs){
+						var o = data.data.txs[i];
+						var tx = ((""+o.txid).match(/.{1,2}/g).reverse()).join("")+'';
+						if(tx.match(/^[a-f0-9]+$/)){
+							var n = o.output_no;
+							var script = (redeem.redeemscript==true) ? redeem.decodedRs : o.script_hex;
+							var amount = o.value;
+							addOutput(tx, n, script, amount);
+						}
+					}
+				} else {
+					$("#redeemFromStatus").removeClass('hidden').html('<span class="glyphicon glyphicon-exclamation-sign"></span> Unexpected error, unable to retrieve unspent outputs.');
+				}
+			},
+			complete: function(data, status) {
+				$("#redeemFromBtn").html("Load").attr('disabled',false);
+				totalInputAmount();
+			}
+		});
+	}
+
+
 	/* retrieve unspent data from blockchair */
 	function listUnspentBlockchair(redeem,network){
 		$.ajax ({
@@ -1322,6 +1359,35 @@ $(document).ready(function() {
 			complete: function(data, status) {
 				$("#rawTransactionStatus").fadeOut().fadeIn();
 				$(thisbtn).val('Submit').attr('disabled',false);				
+			}
+		});
+	}
+
+	// broadcast transaction via sharky.pw for nyancoin
+	function rawSubmitsharkypw_Nyancoin(thisbtn) {
+		$(thisbtn).val('Please wait, loading...').attr('disabled',true);
+		$.ajax ({
+			type: "POST",
+			url: "https://nyan.sharky.pw/send_tx.php",
+			data: '{"tx_hex":"'+$("#rawTransaction").val()+'"}',
+			dataType: "json",
+			error: function(data) {
+				var obj = $.parseJSON(data.responseText);
+				var r = ' ' + obj.error;
+				r = (r!='') ? r : ' Failed to broadcast'; // build response
+				$("#rawTransactionStatus").addClass('alert-danger').removeClass('alert-success').removeClass("hidden").html(r).prepend('<span class="glyphicon glyphicon-exclamation-sign"></span>');
+			},
+			success: function(data) {
+				var txid = data.txid;
+				if (txid.length == 64) {
+					$("#rawTransactionStatus").addClass('alert-success').removeClass('alert-danger').removeClass("hidden").html(' Txid: ' + txid);
+				} else {
+					$("#rawTransactionStatus").addClass('alert-danger').removeClass('alert-success').removeClass("hidden").html(' Unexpected error, please try again').prepend('<span class="glyphicon glyphicon-exclamation-sign"></span>');
+				}
+			},
+			complete: function(data, status) {
+				$("#rawTransactionStatus").fadeOut().fadeIn();
+				$(thisbtn).val('Submit').attr('disabled',false);
 			}
 		});
 	}
@@ -1970,6 +2036,10 @@ $(document).ready(function() {
 		} else if(host=="cryptoid.info_carboncoin"){
 			$("#rawSubmitBtn").click(function(){
 				rawSubmitcryptoid_Carboncoin(this);
+			});
+		} else if(host=="sharky.pw_nyancoin"){
+			$("#rawSubmitBtn").click(function(){
+				rawSubmitsharkypw_Nyancoin(this);
 			});
 		} else {
 			$("#rawSubmitBtn").click(function(){
