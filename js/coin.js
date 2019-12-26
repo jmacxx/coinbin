@@ -1617,7 +1617,7 @@
 		}
 
 		/* sign inputs */
-		r.sign = function(wif, sigHashType){
+		r.sign = function(wif, sigHashType, warnings){
 			var shType = sigHashType || 1;
 			for (var i = 0; i < this.ins.length; i++) {
 				var d = this.extractScriptKey(i);
@@ -1640,6 +1640,7 @@
 
 				} else {
 					// could not sign
+					warnings.push("could not sign input "+(i+1)+" using the supplied private key");
 				}
 			}
 			return this.serialize();
