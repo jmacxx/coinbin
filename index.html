@@ -63,6 +63,7 @@
 									<li><a href="#newMultiSig" data-toggle="tab">MultiSig Address</a></li>
 									<li><a href="#newTimeLocked" data-toggle="tab">Time Locked Address</a></li>
 									<li><a href="#newHDaddress" data-toggle="tab">HD Address</a></li>
+									<li><a href="#newSignVerify" data-toggle="tab">Sign & Verify Message</a></li>
 									<li class="divider"></li>
 									<li><a href="#newTransaction" data-toggle="tab">Transaction</a></li>
 								</ul>
@@ -591,6 +592,55 @@
 						</div>
 
 						<input type="button" class="btn btn-primary" value="Generate" id="newHDKeysBtn">
+					</div>
+
+					<div class="tab-pane tab-content" id="newSignVerify">
+						<h2>Sign / Verify Message</h2>
+						<p>Use the form below to sign and/or verify a message.</p>
+						<label>Message</label>
+						<div class="input-group-btn">
+							<textarea type="text" id="newSignMessage" class="form-control" style="height:125px"></textarea>
+						</div>
+						<label>WIF Key</label><span class="text-muted"> (for signing)</span>
+						<div class="input-group">
+							<input id="newSignWif" type="password" class="form-control" value="">
+							<span class="input-group-btn">
+								<button class="showKey btn btn-default" type="button">Show</button>
+							</span>
+						</div>
+						<label>Address</label><span class="text-muted"> (for verifying)</span>
+						<div class="input-group-btn">
+							<input id="newSignPub" type="text" class="form-control" value="" >
+						</div>
+						<label>Signature</label>
+						<div class="input-group-btn">
+							<input id="newSignSig" type="text" class="form-control" value="" >
+						</div>
+						<br />
+						<br />
+						<div>
+							<a href="javascript:;" class="optionsCollapse"><div class="well well-sm"><span class="glyphicon glyphicon-collapse-down" id="glyphcollapse2"></span> Advanced Options</div></a>
+							<div class="hidden optionsAdvanced">
+								<div class="row">
+									<div class="col-xs-3">
+										Address type
+										<select id="sigAddressType" class="form-control">
+											<option selected>p2pkh</option>
+											<option>p2sh(p2wpkh)</option>
+											<option>p2wpkh</option>
+										</select>
+									</div>
+								</div>
+								<hr>
+							</div>
+						</div>
+						<br />
+						<input type="button" class="btn btn-primary" value="Sign" id="newSignSignBtn">&nbsp;(Message and WIF key required to sign)
+						<br />
+						<br />
+						<input type="button" class="btn btn-primary" value="Verify" id="newSignVerifyBtn">&nbsp;(Message, address and signature required to verify)
+						<br />
+						<br />
 					</div>
 
 					<div class="tab-pane tab-content" id="newTransaction">
@@ -1395,14 +1445,19 @@
 
 
 							<div class="row">
-								<div class="col-md-6">
+								<div class="col-md-4">
 									<b>HD Pub</b>: <br>
 									<input type="text" class="form-control coinjssetting" id="coinjs_hdpub">
 								</div>
 
-								<div class="col-md-6">
+								<div class="col-md-4">
 									<b>HD Priv</b>: <br>
 									<input type="text" class="form-control coinjssetting" id="coinjs_hdprv">
+								</div>
+
+								<div class="col-md-4">
+									<b>Network</b>: <br>
+									<input type="text" class="form-control" id="coinjs_network">
 								</div>
 							</div>
 
