@@ -1938,6 +1938,10 @@ $(document).ready(function() {
                 explorer_addr = "https://chain.so/address/LTC/";
                 coinjs.bech32.hrp = "ltc";
             }
+            else if (coinjs.pub == 0x6f){        // BITCOIN TESTNET
+                explorer_addr = "https://chain.so/address/BTCTEST/";
+                coinjs.bech32.hrp = "tb";
+            }
             else if (coinjs.pub == 0x1e){   // DOGE
                 explorer_addr = "https://chain.so/address/DOGE/";
             }
